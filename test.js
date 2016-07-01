@@ -20,20 +20,23 @@ interest.subscribe('kiat', function () {
 
 interest.publish('kiat', 'diko', 'buang');
 
-stopKiat1();
+stopKiat2();
+console.log("2nd handler removed, it should not execute on next publish");
 
 
-console.log('calling after 5 seconds');
+
+console.log('*** calling after 5 seconds');
 setTimeout(
     function () {
         interest.publish('kiat', 'diko', 'buang', ' after 2 seconds');
+       
         
-        
-        console.log('calling after 1 second');
+        console.log('*** calling after 1 second');
         setTimeout(
             function () {
+console.log('it should not call any handlers');
                 interest.publish('kiat', 'diko', 'buang', ' after 1 second');
-                console.log('it should not call any handlers');
+                
             }, 1000);
         
         interest.purge();

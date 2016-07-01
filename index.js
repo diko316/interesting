@@ -1,128 +1,187 @@
 'use strict';
 
-var BaseBus = require('./bus.js');
+var EXPORTS = createEventCenter;
 
 function empty() {
 }
 
-function emptyCallback() {
-}
-
 function createEventCenter() {
-    
-    var hasOwn = Object.prototype.hasOwnProperty,
-        subscribers = {},
-        counters = {},
-        Base = BaseBus;
-    var Proto;
-    
-    function registerSubscriber(name, callback, scope) {
-        var list = subscribers,
-            gen = counters;
-        var id, callbacks;
+    var first = null,
+        last = null,
+        E = empty,
+        Base = BaseEventBus,
+        publishing = false;
         
-        // stopper
-        function stop() {
-            var list = callbacks;
-            if (list) {
-                list[id] = null;
-                delete list[id];
-                callbacks = null;
-                list = null;
-                runner = null;
+    var Prototype;
+    
+    // attach subscription
+    function attach(subscription) {
+        var lastSubscriber = last;
+        
+        subscription.next = null;
+        last = subscription;
+        
+        // append
+        if (lastSubscriber) {
+            lastSubscriber.next = subscription;
+            subscription.previous = lastSubscriber;
+        }
+        // create
+        else {
+            first = subscription;
+            subscription.previous = null;
+        }
+        
+        return subscription;
+    }
+    
+    // remove subscription
+    function remove(subscription) {
+        var previous = subscription.previous,
+            next = subscription.next;
+            
+        if (last === subscription) {
+            last = previous;
+        }
+        if (first === subscription) {
+            first = next;
+        }
+        if (previous) {
+            previous.next = next;
+        }
+        if (next) {
+            next.previous = previous;
+        }
+        delete subscription.previous;
+        delete subscription.next;
+        return next;
+    }
+    
+    function summaryRemove() {
+        var current = last,
+            removeSubscription = remove;
+        var next;
+
+        for (; current; ) {
+            
+            if (current.active) {
+                current = current.previous;
+            }
+            else {
+                next = current.previous;
+                removeSubscription(current);
+                current = next;
+                
+            }
+        }
+    }
+    
+    function EventBus() {
+        var instance = this;
+            
+        if (instance instanceof EventBus) {
+            Base.apply(instance, arguments);
+            return instance;
+        }
+        else {
+            return createEventCenter();
+        }
+    }
+    
+    E.prototype = Base.prototype;
+    EventBus.prototype = Prototype = new E();
+    
+    Prototype.subscribe = function (name, callback, scope) {
+        var bus = this;
+        
+        // subscription
+        function subscription(args) {
+            try {
+                callback.apply(scope, args);
+            }
+            catch (e) {
+                throw e;
             }
         }
         
-        // runner
-        function runner() {
-            callback.apply(scope, arguments);
+        // stopper will only mark subscription as not active
+        function stop() {
+            if (publishing) {
+                delete subscription.active;
+            }
+            else {
+                remove(subscription);
+            }
+            return bus;
         }
         
-        if (!hasOwn.call(list, name)) {
-            list[name] = {};
-            gen[name] = 0;
+        
+        if (!name || typeof name !== 'string') {
+            throw new Error('[name] parameter is not valid');
+        }
+        else if (!(callback instanceof Function)) {
+            throw new Error('[callback] parameter must be Function');
         }
         
-        callbacks = list[name];
-        id = ++gen[name];
-        
-        callbacks[id] = runner;
-        gen = null;
+        subscription.active = true;
+        subscription.topic = name;
+        attach(subscription);
         
         return stop;
-    }
+    };
     
-    function Bus() {
-        Base.apply(this, arguments);
-    }
+    Prototype.publish = function (name) {
+        var A = Array.prototype,
+            args = {},
+            current = first,
+            oldPublishFlag = publishing;
+           
+        A.push.apply(args, A.slice.call(arguments, 1));
+        
+        // execute active handlers
+        publishing = true;
+        for (; current; current = current.next) {
+            
+            if (current.active && name === current.topic) {
+                current(args);
+            }
+
+        }
+        publishing = oldPublishFlag;
+        
+        // remove handlers only if not publishing
+        if (!oldPublishFlag) {
+            summaryRemove();
+        }
+        return this;
+    };
     
-    empty.prototype = Base.prototype;
-    Bus.prototype = Proto = new empty();
+    Prototype.purge = function () {
+        var current = last;
+        
+        // mark inactive
+        for (; current; current = current.previous) {
+            delete current.active;
+        }
+        
+        if (!publishing) {
+            summaryRemove();
+        }
+        return this;
+    };
     
-    Proto.constructor = Bus;
-    
-    Proto.subscribe = function (name, callback, scope) {
-                        if (name && typeof name === 'string' &&
-                            callback instanceof Function) {
-                            
-                            return registerSubscriber(name, callback,
-                                                typeof scope === 'undefined' ?
-                                                    null : scope
-                                            );
-                        }
-                        return emptyCallback;
-                    };
-                    
-    Proto.publish = function (name) {
-                        var list = subscribers,
-                            A = Array.prototype;
-                        var id, callbacks, args;
-                        
-                        if (hasOwn.call(list, name)) {
-                            callbacks = list[name];
-                            args = {};
-                            
-                            A.push.apply(args, A.slice.call(arguments, 1));
-                            
-                            for (id in callbacks) {
-                                if (callbacks.hasOwnProperty(id)) {
-                                    try {
-                                        callbacks[id].apply(null, args);
-                                    }
-                                    catch (e) {}
-                                }
-                            }
-                            args = null;
-                            callbacks = null;
-                        }
-                        list = null;
-                        return this;
-                    };
-    
-    Proto.purge = function () {
-                        var list = subscribers,
-                            h = hasOwn;
-                        var name, id, callbacks;
-                        
-                        for (name in list) {
-                            if (h.call(list, name)) {
-                                callbacks = list[name];
-                                for (id in callbacks) {
-                                    if (callbacks.hasOwnProperty(id)) {
-                                        delete callbacks[id];
-                                    }
-                                }
-                            }
-                        }
-                        callbacks = null;
-                        list = null;
-                        return this;
-                    };
-    
-    return new Bus();
+    return new EventBus();
     
 }
 
 
 
-module.exports = createEventCenter;
+function BaseEventBus() {
+}
+
+BaseEventBus.prototype = {
+    constructor: BaseEventBus
+};
+
+
+module.exports = EXPORTS;
