@@ -1,6 +1,6 @@
 {
   "name": "interesting",
-  "version": "0.0.3",
+  "version": "1.0.0",
   "description": "Pub/Sub service",
   "main": "index.js",
   "scripts": {
@@ -20,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/diko316/interesting/issues"
   },
-  "homepage": "https://github.com/diko316/interesting#readme"
+  "homepage": "https://github.com/diko316/interesting#readme",
+  "dependencies": {
+    "setimmediate": "^1.0.4"
+  }
 }

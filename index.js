@@ -2,6 +2,10 @@
 
 var EXPORTS = createEventCenter;
 
+// set immediate polyfill
+require("setimmediate");
+
+
 function empty() {
 }
 
@@ -9,8 +13,7 @@ function createEventCenter() {
     var first = null,
         last = null,
         E = empty,
-        Base = BaseEventBus,
-        publishing = false;
+        Base = BaseEventBus;
         
     var Prototype;
     
@@ -38,7 +41,8 @@ function createEventCenter() {
     // remove subscription
     function remove(subscription) {
         var previous = subscription.previous,
-            next = subscription.next;
+            next = subscription.next,
+            running = subscription.running;
             
         if (last === subscription) {
             last = previous;
@@ -52,8 +56,17 @@ function createEventCenter() {
         if (next) {
             next.previous = previous;
         }
+        delete subscription.active;
         delete subscription.previous;
         delete subscription.next;
+        // remove running queue
+        for (; running; ) {
+            next = running[0];
+            clearImmediate(running[1]);
+            running[0] = null;
+            running[1] = null;
+            running = next;
+        }
         return next;
     }
     
@@ -63,7 +76,6 @@ function createEventCenter() {
         var next;
 
         for (; current; ) {
-            
             if (current.active) {
                 current = current.previous;
             }
@@ -71,9 +83,9 @@ function createEventCenter() {
                 next = current.previous;
                 removeSubscription(current);
                 current = next;
-                
             }
         }
+        
     }
     
     function EventBus() {
@@ -96,21 +108,33 @@ function createEventCenter() {
         
         // subscription
         function subscription(args) {
-            try {
-                callback.apply(scope, args);
-            }
-            catch (e) {
-                throw e;
-            }
+            var me = subscription;
+            
+            me.running = [
+                me.running,
+                setImmediate(function () {
+                    var me = subscription;
+                    
+                    me.running = me.running[0];
+                    
+                    if (me.active) {
+                        callback.apply(scope, args);
+                    }
+                    else {
+                        remove(me);
+                    }
+                    me = null;
+                })];
         }
         
         // stopper will only mark subscription as not active
         function stop() {
-            if (publishing) {
-                delete subscription.active;
+            var me = subscription;
+            if (me.running) {
+                delete me.active;
             }
             else {
-                remove(subscription);
+                remove(me);
             }
             return bus;
         }
@@ -123,8 +147,10 @@ function createEventCenter() {
             throw new Error('[callback] parameter must be Function');
         }
         
+        subscription.running = null;
         subscription.active = true;
         subscription.topic = name;
+        
         attach(subscription);
         
         return stop;
@@ -133,26 +159,20 @@ function createEventCenter() {
     Prototype.publish = function (name) {
         var A = Array.prototype,
             args = {},
-            current = first,
-            oldPublishFlag = publishing;
+            current = first;
+        
+        // remove inactive handlers only if not publishing
+        summaryRemove();
            
         A.push.apply(args, A.slice.call(arguments, 1));
         
         // execute active handlers
-        publishing = true;
         for (; current; current = current.next) {
-            
-            if (current.active && name === current.topic) {
+            if (name === current.topic) {
                 current(args);
             }
-
         }
-        publishing = oldPublishFlag;
         
-        // remove handlers only if not publishing
-        if (!oldPublishFlag) {
-            summaryRemove();
-        }
         return this;
     };
     
@@ -164,15 +184,16 @@ function createEventCenter() {
             delete current.active;
         }
         
-        if (!publishing) {
-            summaryRemove();
-        }
+        summaryRemove();
         return this;
     };
     
     return new EventBus();
     
 }
+
+
+
 
 
 
