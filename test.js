@@ -23,12 +23,15 @@ BUS.subscribe('good', function() {
 bad = BUS.subscribe('good', function() {
     console.log('bad!');
     //interesting();
-    bad();
+    //bad();
+    BUS.purge();
 });
 
 
 BUS.publish('good', {name: 'buang'});
 
 console.log('next');
+
+BUS.publish('good', {name: 'buang1'});
 
 BUS.publish('good', {name: 'buang1'});
