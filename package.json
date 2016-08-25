@@ -1,6 +1,6 @@
 {
   "name": "interesting",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pub/Sub service",
   "main": "index.js",
   "scripts": {
@@ -22,6 +22,6 @@
   },
   "homepage": "https://github.com/diko316/interesting#readme",
   "dependencies": {
-    "setimmediate": "^1.0.4"
+    "eventemitter3": "^1.2.0"
   }
 }

@@ -1,10 +1,8 @@
 'use strict';
 
-var EXPORTS = createEventCenter;
-
-// set immediate polyfill
-require("setimmediate");
-
+var EXPORTS = createEventCenter,
+    EE = require('eventemitter3'),
+    EVENTS = new EE();
 
 function empty() {
 }
@@ -13,7 +11,8 @@ function createEventCenter() {
     var first = null,
         last = null,
         E = empty,
-        Base = BaseEventBus;
+        Base = BaseEventBus,
+        publishing = false;
         
     var Prototype;
     
@@ -22,51 +21,53 @@ function createEventCenter() {
         var lastSubscriber = last;
         
         subscription.next = null;
-        last = subscription;
-        
+        subscription.previous = lastSubscriber;
+
         // append
         if (lastSubscriber) {
             lastSubscriber.next = subscription;
-            subscription.previous = lastSubscriber;
         }
         // create
         else {
             first = subscription;
-            subscription.previous = null;
         }
+        
+        last = subscription;
+        
         
         return subscription;
     }
     
     // remove subscription
     function remove(subscription) {
-        var previous = subscription.previous,
-            next = subscription.next,
-            running = subscription.running;
+        var next = subscription.next;
+        var previous;
+        
+        if (subscription.subscribed) {
+            previous = subscription.previous;
             
-        if (last === subscription) {
-            last = previous;
+            if (last === subscription) {
+                last = previous;
+            }
+            
+            if (first === subscription) {
+                first = next;
+            }
+            
+            if (previous) {
+                previous.next = next;
+            }
+            
+            if (next) {
+                next.previous = previous;
+            }
+            
+            delete subscription.active;
+            delete subscription.subscribed;
+            delete subscription.previous;
+            delete subscription.next;
         }
-        if (first === subscription) {
-            first = next;
-        }
-        if (previous) {
-            previous.next = next;
-        }
-        if (next) {
-            next.previous = previous;
-        }
-        delete subscription.active;
-        delete subscription.previous;
-        delete subscription.next;
-        // remove running queue
-        for (; running; ) {
-            next = running[0];
-            clearImmediate(running[1]);
-            running[0] = null;
-            running[1] = null;
-            running = next;
-        }
+        
         return next;
     }
     
@@ -108,32 +109,26 @@ function createEventCenter() {
         
         // subscription
         function subscription(args) {
-            var me = subscription;
+            var event = EVENTS,
+                me = subscription;
             
-            me.running = [
-                me.running,
-                setImmediate(function () {
-                    var me = subscription;
-                    
-                    me.running = me.running[0];
-                    
-                    if (me.active) {
-                        callback.apply(scope, args);
-                    }
-                    else {
-                        remove(me);
-                    }
-                    me = null;
-                })];
+            if (me.active) {
+                event.once('call', callback, scope);
+                event.emit.apply(event, args);
+            }
+            else if (!publishing && me.subscribed) {
+                remove(me);
+            }
+            
         }
         
         // stopper will only mark subscription as not active
         function stop() {
             var me = subscription;
-            if (me.running) {
+            if (publishing) {
                 delete me.active;
             }
-            else {
+            else if (me.subscribed) {
                 remove(me);
             }
             return bus;
@@ -147,9 +142,9 @@ function createEventCenter() {
             throw new Error('[callback] parameter must be Function');
         }
         
-        subscription.running = null;
         subscription.active = true;
         subscription.topic = name;
+        subscription.subscribed = true;
         
         attach(subscription);
         
@@ -158,12 +153,12 @@ function createEventCenter() {
     
     Prototype.publish = function (name) {
         var A = Array.prototype,
-            args = {},
-            current = first;
+            args = { 0:'call', length: 1 },
+            current = first,
+            oldPublishing = publishing;
+            
+        publishing = true;
         
-        // remove inactive handlers only if not publishing
-        summaryRemove();
-           
         A.push.apply(args, A.slice.call(arguments, 1));
         
         // execute active handlers
@@ -172,6 +167,11 @@ function createEventCenter() {
                 current(args);
             }
         }
+        
+        publishing = oldPublishing;
+        
+        // remove inactive handlers only if not publishing
+        summaryRemove();
         
         return this;
     };
