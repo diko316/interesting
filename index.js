@@ -61,7 +61,8 @@ function createEventCenter() {
             if (next) {
                 next.previous = previous;
             }
-            
+            delete subscription.topic;
+            delete subscription.isRegExp;
             delete subscription.active;
             delete subscription.subscribed;
             delete subscription.previous;
@@ -105,7 +106,8 @@ function createEventCenter() {
     EventBus.prototype = Prototype = new E();
     
     Prototype.subscribe = function (name, callback, scope) {
-        var bus = this;
+        var bus = this,
+            isRegExp = name instanceof RegExp;
         
         // subscription
         function subscription(args) {
@@ -135,7 +137,7 @@ function createEventCenter() {
         }
         
         
-        if (!name || typeof name !== 'string') {
+        if (!name || (typeof name !== 'string' && !isRegExp)) {
             throw new Error('[name] parameter is not valid');
         }
         else if (!(callback instanceof Function)) {
@@ -144,6 +146,7 @@ function createEventCenter() {
         
         subscription.active = true;
         subscription.topic = name;
+        subscription.isRegExp = isRegExp;
         subscription.subscribed = true;
         
         attach(subscription);
@@ -156,14 +159,15 @@ function createEventCenter() {
             args = { 0:'call', length: 1 },
             current = first,
             oldPublishing = publishing;
-            
+        var topic;
         publishing = true;
         
         A.push.apply(args, A.slice.call(arguments, 1));
         
         // execute active handlers
         for (; current; current = current.next) {
-            if (name === current.topic) {
+            topic = current.topic;
+            if (current.isRegExp ? topic.test(name) : name === topic) {
                 current(args);
             }
         }

@@ -33,8 +33,8 @@ setTimeout(function () {
 
 ## API
 
-#### EventBus.prototype.subscribe(*name: String*, *callback: Function*): Function
-Subscribes a topic to the event bus.
+#### EventBus.prototype.subscribe(*name: String|RegExp*, *callback: Function*): Function
+Subscribes a topic to the event bus. Topic *name* can also accept regular expression for filtering topics.
 
 ##### parameters
 * **name:String**

@@ -4,6 +4,9 @@
 var BUS = require('./index.js')();
 var bad;
 
+BUS.subscribe(/good/, function() {
+    console.log('all good!');
+});
 
 BUS.subscribe('good', function() {
     console.log('okies1');
@@ -21,17 +24,17 @@ BUS.subscribe('good', function() {
 
 
 bad = BUS.subscribe('good', function() {
-    console.log('bad!');
+    //console.log('bad!');
     //interesting();
     //bad();
-    BUS.purge();
+    //BUS.purge();
 });
 
 
-BUS.publish('good', {name: 'buang'});
+BUS.publish('good1', {name: 'buang'});
 
 console.log('next');
 
-BUS.publish('good', {name: 'buang1'});
+BUS.publish('good1', {name: 'buang1'});
 
-BUS.publish('good', {name: 'buang1'});
+BUS.publish('goodx', {name: 'buang1'});
